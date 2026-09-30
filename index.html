@@ -82,8 +82,11 @@ button.go{background:var(--accent);color:var(--accent-ink);border:0;border-radiu
 button.go:disabled{opacity:.6;cursor:wait}
 button.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:10px 16px;font:600 .9rem var(--sans);cursor:pointer}
 button.ghost:hover{border-color:var(--accent);color:var(--accent)}
-.status{min-height:1.5em;margin-bottom:12px;font-size:.95rem}
-.status.err{color:var(--accent);font-weight:600}
+.status{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;width:min(560px,calc(100vw - 32px));background:var(--surface);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--job);border-radius:8px;padding:12px 16px;font-size:.95rem;box-shadow:0 8px 24px rgba(0,0,0,.2);cursor:pointer}
+.status:empty{display:none}
+.status.err{border-left-color:var(--accent);font-weight:600}
+.askbar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:16px}
+.askbar .askn{width:120px}
 .note{font-size:.8rem;color:var(--muted);margin-top:4px}
 .banner{border:1px dashed var(--accent);color:var(--accent);padding:10px 14px;border-radius:6px;margin:0 0 20px;font-weight:600;font-size:.95rem}
 /* auth */
@@ -280,10 +283,12 @@ footer{margin-top:56px;color:var(--muted);font-size:.85rem}
     <section class="res" id="askWrap">
       <h2>Questions to ask the interviewer <small>end of the interview</small></h2>
       <div id="askList"></div>
-      <div class="ansbar" style="margin-top:16px">
-        <button class="go" id="askBtn" type="button">Generate questions</button>
+      <div class="askbar">
+        <div class="askn"><label class="field" for="askN">How many</label><input id="askN" type="number" min="1" max="20" value="8"></div>
+        <button class="go" id="askBtn" type="button">Generate</button>
         <button class="ghost" id="askCopyAll" type="button">Copy all</button>
       </div>
+      <div class="note">Uses the API key entered above. Without a key you get sample questions. 1 to 20 at a time.</div>
     </section>
 
     <section class="res" id="jobDiffsWrap"><h2>Differentiators <small>ways to stand out</small></h2><div id="jobDiffs"></div></section>
@@ -369,7 +374,14 @@ const SAMPLE_MORE = {
 };
 
 function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
-function setStatus(msg, isErr){ const s=$("status"); s.textContent=msg||""; s.className="status"+(isErr?" err":""); }
+let statusTimer=null;
+function setStatus(msg, isErr){
+  const s=$("status"); clearTimeout(statusTimer);
+  s.textContent=msg||""; s.className="status"+(isErr?" err":"");
+  // errors and the "Asking Claude…" progress note stay until the next action; other notes fade after a few seconds
+  if(msg && !isErr && !/^Asking Claude/.test(msg)) statusTimer=setTimeout(()=>{ s.textContent=""; },6000);
+}
+$("status").addEventListener("click",()=>setStatus(""));
 function uid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():"id-"+Date.now().toString(36)+Math.random().toString(36).slice(2,10); }
 function copyText(text, btn){
   const done=()=>{ const o=btn.textContent; btn.textContent="Copied"; setTimeout(()=>btn.textContent=o,1400); };
@@ -701,7 +713,6 @@ function renderAsks(){
     const bar=el("div","ans-wrap"); const cb=el("button","mini","Copy"); cb.type="button"; cb.addEventListener("click",()=>copyText(a.question,cb)); bar.appendChild(cb); row.appendChild(bar);
     box.appendChild(row);
   });
-  $("askBtn").textContent=asks.length?"Add 5 more":"Generate questions";
   $("askCopyAll").classList.toggle("hidden",!asks.length);
 }
 async function toggleAskStar(i){
@@ -710,27 +721,34 @@ async function toggleAskStar(i){
   catch(e){ arr[i].starred=!arr[i].starred; renderAsks(); setStatus("Couldn't save the star. "+e.message,true); }
 }
 async function generateAsk(){
-  const asks=cur.job.ask_questions, n=asks.length?5:8, key=$("apiKey").value.trim(); persistKey();
-  if(asks.length>=20){ setStatus("That's the maximum of 20 questions to ask.",true); return; }
-  const btn=$("askBtn"), old=btn.textContent; btn.disabled=true; btn.textContent="Generating…"; setStatus(key?"Asking Claude…":"");
+  const n=parseInt($("askN").value,10);
+  if(!(n>=1 && n<=20)){ setStatus("Enter a number from 1 to 20.",true); return; }
+  const asks=cur.job.ask_questions, key=$("apiKey").value.trim(); persistKey();
+  if(asks.length>=50){ setStatus("That's the maximum of 50 questions to ask for one job.",true); return; }
+  const want=Math.min(n,50-asks.length);
+  const btn=$("askBtn"); btn.disabled=true; btn.textContent="Generating…"; setStatus(key?"Asking Claude…":"");
   try{
     let add;
     if(!key){
       const have=new Set(asks.map(a=>a.question));
-      add=SAMPLE_ASK_MORE.filter(q=>!have.has(q.question)).slice(0,n);
-      if(!add.length) throw new Error("Out of sample questions. Add an API key for tailored ones.");
+      add=SAMPLE_ASK_MORE.filter(q=>!have.has(q.question)).slice(0,want);
+      if(!add.length) throw new Error("No more sample questions. Add an API key above for unlimited tailored ones.");
     }else{
-      const text=`<job_summary>\n${cur.job.job_summary}\n</job_summary>\n\n<resume_summary>\n${cur.job.resume_summary}\n</resume_summary>\n\n<existing_questions>\n${asks.map(a=>"- "+a.question).join("\n")||"(none)"}\n</existing_questions>\n\nWrite exactly ${n} questions.`;
-      const data=parseJSON(await callClaude(key,[{type:"text",text}],{system:ASK_SYSTEM,maxTokens:3000}));
+      const text=`<job_summary>\n${cur.job.job_summary}\n</job_summary>\n\n<resume_summary>\n${cur.job.resume_summary}\n</resume_summary>\n\n<existing_questions>\n${asks.map(a=>"- "+a.question).join("\n")||"(none)"}\n</existing_questions>\n\nWrite exactly ${want} questions.`;
+      const data=parseJSON(await callClaude(key,[{type:"text",text}],{system:ASK_SYSTEM,maxTokens:1200+250*want}));
       if(!data||!Array.isArray(data.questions)) throw new Error("The response was missing questions. Try again.");
-      add=data.questions.filter(q=>q&&typeof q.question==="string"&&q.question.trim()).map(q=>({question:q.question.trim(),why:String(q.why||"").trim()})).slice(0,n);
+      add=data.questions.filter(q=>q&&typeof q.question==="string"&&q.question.trim()).map(q=>({question:q.question.trim(),why:String(q.why||"").trim()})).slice(0,want);
       if(!add.length) throw new Error("No usable questions came back. Try again.");
     }
-    const next=[...asks,...add.map(q=>({question:q.question,why:q.why,starred:false}))].slice(0,20);
+    const next=[...asks,...add.map(q=>({question:q.question,why:q.why,starred:false}))];
     await store.setAskQuestions(cur.job.id,next); cur.job.ask_questions=next; renderAsks();
-    setStatus(`Added ${add.length} question${add.length===1?"":"s"}.`);
-  }catch(e){ setStatus(e instanceof TypeError?"Network error. Check your connection and that the key is valid.":e.message,true); }
-  finally{ btn.disabled=false; if(btn.textContent==="Generating…") btn.textContent=old; renderAsks(); }
+    setStatus(!key && add.length<want
+      ? `Added ${add.length} sample question${add.length===1?"":"s"}. That's all the samples there are. Add an API key above for tailored ones.`
+      : `Added ${add.length} question${add.length===1?"":"s"}.`);
+  }catch(e){
+    console.error(e);
+    setStatus(e instanceof TypeError?"Network error. Check your connection and that the key is valid.":e.message,true);
+  }finally{ btn.disabled=false; btn.textContent="Generate"; }
 }
 $("askBtn").addEventListener("click",generateAsk);
 $("askCopyAll").addEventListener("click",e=>copyText(cur.job.ask_questions.map((a,i)=>`${i+1}. ${a.question}`).join("\n"),e.currentTarget));
