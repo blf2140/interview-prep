@@ -36,6 +36,10 @@ create table if not exists public.questions (
 -- Added with tailored answers
 alter table public.questions add column if not exists answer text;
 
+-- Added with user-written questions and "questions to ask the interviewer"
+alter table public.questions add column if not exists custom boolean not null default false;
+alter table public.jobs add column if not exists ask_questions jsonb not null default '[]'::jsonb;
+
 -- Questions the job application itself asks, with tailored answers
 create table if not exists public.application_questions (
   id uuid primary key default gen_random_uuid(),
