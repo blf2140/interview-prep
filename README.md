@@ -14,6 +14,7 @@ Without those two values the page runs in **demo mode**: no accounts, data saved
 
 ## Notes
 
+- Accounts are optional. Guests can use everything; their prep is saved in that browser only (lost if site data is cleared). After signing in, guest jobs can be moved into the account.
 - Each user pastes their own Anthropic API key. It stays in their browser (optionally remembered in localStorage) and is never stored in Supabase.
 - Forgotten passwords can't be reset yet. The optional recovery email is stored for a future reset flow.
 - The full résumé and job text are not stored; only short summaries used to generate additional questions.

@@ -127,15 +127,15 @@ footer{margin-top:56px;color:var(--muted);font-size:.85rem}
 <div class="wrap">
   <div class="topbar">
     <h1 class="brand">Interview <em>Prep</em> Desk</h1>
-    <div id="userbar" class="userbar hidden"><span>Signed in as <b id="whoami"></b></span><button type="button" id="logoutBtn" class="linkbtn">Log out</button></div>
+    <div id="userbar" class="userbar hidden"><span id="whoWrap"><span id="whoLabel">Signed in as</span> <b id="whoami"></b></span><button type="button" id="logoutBtn" class="linkbtn">Log out</button><button type="button" id="signinBtn" class="ghost">Sign in / Create account</button></div>
   </div>
   <div class="status" id="status" role="status" aria-live="polite"></div>
   <div id="cfgWarn" class="banner hidden">Demo mode: Supabase isn't configured, so there are no accounts and your jobs are saved only in this browser.</div>
 
   <!-- AUTH -->
   <section id="viewAuth" class="hidden">
-    <h2 class="viewtitle">Save your prep, pick it up later.</h2>
-    <p class="lede">Create an account to keep interview prep for each job and star the questions most likely to come up.</p>
+    <h2 class="viewtitle">Sync your prep across devices.</h2>
+    <p class="lede">An account is optional. Without one, your prep is saved in this browser. With one, it follows you to any device, and any guest prep can be moved over.</p>
     <div class="authcard">
       <div class="seg" role="group" aria-label="Sign in or create account">
         <button type="button" id="modeIn" class="on" aria-pressed="true">Sign in</button>
@@ -148,6 +148,7 @@ footer{margin-top:56px;color:var(--muted);font-size:.85rem}
         <button class="go" id="authGo" type="submit">Sign in</button>
         <div class="note" id="authHint">3-30 letters, numbers or underscores. Passwords need at least 8 characters.</div>
       </form>
+      <div style="margin-top:16px"><button type="button" id="guestBtn" class="linkbtn">Continue as guest</button></div>
     </div>
   </section>
 
@@ -157,6 +158,7 @@ footer{margin-top:56px;color:var(--muted);font-size:.85rem}
       <h2 class="viewtitle">Your interview prep</h2>
       <button class="go" id="newPrepBtn" type="button">New interview prep</button>
     </div>
+    <p id="guestNote" class="lede hidden" style="margin-top:-8px">Guest mode: your prep is saved in this browser only. Create an account to keep it across devices.</p>
     <div id="jobList"></div>
   </section>
 
@@ -322,8 +324,9 @@ const remote = {
     return data.map(j=>({id:j.id,title:j.title,company:j.company,is_sample:j.is_sample,created_at:j.created_at,total:j.questions.length,starred:j.questions.filter(q=>q.starred).length}));
   },
   async createJob(job,qs,userId){
-    const {data,error}=await sb.from("jobs").insert({...job,user_id:userId}).select("id").single(); throwIf(error);
-    const {error:qe}=await sb.from("questions").insert(qs.map((q,i)=>({...q,position:i,job_id:data.id,user_id:userId})));
+    const clean={title:job.title,company:job.company||"",job_url:job.job_url||null,job_summary:job.job_summary||"",resume_summary:job.resume_summary||"",differentiators:job.differentiators||[],is_sample:!!job.is_sample};
+    const {data,error}=await sb.from("jobs").insert({...clean,user_id:userId}).select("id").single(); throwIf(error);
+    const {error:qe}=await sb.from("questions").insert(qs.map((q,i)=>({kind:q.kind,question:q.question,testing:q.testing,starred:!!q.starred,position:q.position??i,job_id:data.id,user_id:userId})));
     if(qe){ await sb.from("jobs").delete().eq("id",data.id); throwIf(qe); }
     return data.id;
   },
@@ -369,10 +372,12 @@ const local = {
   },
   async deleteJob(id){ const d=lload(); d.jobs=d.jobs.filter(j=>j.id!==id); d.questions=d.questions.filter(q=>q.job_id!==id); lsave(d); }
 };
-const store = CONFIGURED ? Object.assign({}, local, remote) : local;
+const remoteStore = Object.assign({}, local, remote);
+let store = local; // guests use browser storage; signing in switches to Supabase
 
 /* =========================== ROUTER / AUTH =========================== */
 let me=null;
+const GUEST={id:"guest",username:"guest",guest:true};
 const VIEWS=["Auth","Jobs","Job","New"];
 function show(v){
   VIEWS.forEach(n=>$("view"+n).classList.toggle("hidden",n!==v));
@@ -381,8 +386,29 @@ function show(v){
   setStatus(""); window.scrollTo(0,0);
 }
 function updateUserbar(){
-  $("userbar").classList.toggle("hidden",!(me&&CONFIGURED));
-  $("whoami").textContent=me?me.username:"";
+  const guest=!me||me.guest;
+  $("userbar").classList.toggle("hidden",!CONFIGURED);
+  $("whoLabel").textContent=guest?"Guest":"Signed in as";
+  $("whoami").textContent=guest?"":me.username;
+  $("logoutBtn").classList.toggle("hidden",guest);
+  $("signinBtn").classList.toggle("hidden",!guest);
+}
+$("signinBtn").addEventListener("click",()=>show("Auth"));
+$("guestBtn").addEventListener("click",()=>openJobs());
+
+/* Move browser-only (guest) jobs into the signed-in account. */
+async function importGuest(){
+  const d=lload(); if(!d.jobs.length) return "";
+  if(!confirm(`Move ${d.jobs.length} guest job${d.jobs.length===1?"":"s"} into your account?`)) return "";
+  let ok=0, fail=0;
+  for(const j of d.jobs){
+    try{
+      const qs=d.questions.filter(q=>q.job_id===j.id).sort((a,b)=>a.position-b.position);
+      await remote.createJob(j,qs,me.id);
+      await local.deleteJob(j.id); ok++;
+    }catch(e){ fail++; }
+  }
+  return ` Moved ${ok} guest job${ok===1?"":"s"} into your account${fail?`; ${fail} couldn't be moved and are still on this device`:""}.`;
 }
 
 let authMode="in";
@@ -407,21 +433,24 @@ $("authForm").addEventListener("submit",async e=>{
   if(email && !/^\S+@\S+\.\S+$/.test(email)){ setStatus("That recovery email doesn't look valid.",true); return; }
   const btn=$("authGo"); btn.disabled=true; setStatus("");
   try{
-    me = authMode==="in" ? await store.signIn(username,password) : await store.signUp(username,password,email);
-    $("authPass").value=""; updateUserbar(); openJobs();
+    me = authMode==="in" ? await remote.signIn(username,password) : await remote.signUp(username,password,email);
+    store=remoteStore; $("authPass").value=""; updateUserbar();
+    const msg=await importGuest();
+    await openJobs(); if(msg) setStatus(msg.trim());
   }catch(err){ setStatus(err.message,true); }
   finally{ btn.disabled=false; }
 });
 
 $("logoutBtn").addEventListener("click",async()=>{
-  try{ await store.signOut(); }catch(e){}
-  me=null; cur=null; $("apiKey").value=""; try{ localStorage.removeItem("ipd_key"); }catch(e){} $("remember").checked=false;
-  updateUserbar(); show("Auth");
+  try{ await remote.signOut(); }catch(e){}
+  me=GUEST; store=local; cur=null; $("apiKey").value=""; try{ localStorage.removeItem("ipd_key"); }catch(e){} $("remember").checked=false;
+  updateUserbar(); openJobs();
 });
 
 /* =========================== JOBS LIST =========================== */
 async function openJobs(){
-  show("Jobs"); const list=$("jobList"); list.textContent="Loading…";
+  show("Jobs"); $("guestNote").classList.toggle("hidden",!(CONFIGURED&&me&&me.guest));
+  const list=$("jobList"); list.textContent="Loading…";
   try{ renderJobs(await store.listJobs()); }
   catch(e){ list.textContent=""; setStatus(e.message,true); }
 }
@@ -711,10 +740,11 @@ $("go").addEventListener("click",generate);
 /* =========================== BOOT =========================== */
 try{ const k=localStorage.getItem("ipd_key"); if(k){ $("apiKey").value=k; $("remember").checked=true; } }catch(e){}
 (async function boot(){
-  if(!CONFIGURED){ $("cfgWarn").classList.remove("hidden"); me={id:"demo",username:"demo"}; }
-  else{ try{ me=await store.session(); }catch(e){ me=null; } }
+  me=GUEST;
+  if(!CONFIGURED) $("cfgWarn").classList.remove("hidden");
+  else{ try{ const s=await remote.session(); if(s){ me=s; store=remoteStore; } }catch(e){} }
   updateUserbar();
-  if(me) openJobs(); else show("Auth");
+  openJobs();
 })();
 </script>
 </body>
