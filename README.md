@@ -5,7 +5,7 @@ Single-page tool: paste a job (text or link) and your résumé (paste or upload)
 ## Deploy (Vercel + Supabase)
 
 1. Create a Supabase project.
-2. SQL editor: run [schema.sql](schema.sql).
+2. SQL editor: run [schema.sql](schema.sql). It is safe to re-run, and you should re-run it whenever the app is upgraded (the answers and application-questions features added a column and a table).
 3. Authentication → Providers → Email: turn **Confirm email OFF**. (Usernames are mapped to hidden emails like `name@users.interviewprep.app`; no mail is ever sent.)
 4. In `index.html`, set `SUPABASE_URL` and `SUPABASE_ANON_KEY` (Project Settings → API). The anon key is public by design; Row Level Security in `schema.sql` is what protects each user's data.
 5. Deploy this folder to Vercel as a static site (no build command, no output directory).
