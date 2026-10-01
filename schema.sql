@@ -38,6 +38,10 @@ alter table public.questions add column if not exists answer text;
 
 -- Added with user-written questions and "questions to ask the interviewer"
 alter table public.questions add column if not exists custom boolean not null default false;
+
+-- Added with practice answers and AI feedback
+alter table public.questions add column if not exists my_answer text;
+alter table public.questions add column if not exists feedback jsonb;
 alter table public.jobs add column if not exists ask_questions jsonb not null default '[]'::jsonb;
 
 -- Questions the job application itself asks, with tailored answers
