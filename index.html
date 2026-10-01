@@ -156,6 +156,20 @@ section.res>h2{font:400 clamp(1.9rem,4.4vw,2.7rem)/1.08 var(--display);letter-sp
 section.res>h2 small{font:600 .74rem var(--sans);color:var(--muted);letter-spacing:.1em;text-transform:uppercase;background:var(--surface-2);padding:5px 10px;border-radius:999px}
 .q{display:grid;grid-template-columns:auto 1fr auto;gap:4px 16px;padding:22px 24px;margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:20px}
 .q .n{font:400 1.7rem var(--display);letter-spacing:-.03em;color:var(--muted);min-width:2ch}
+.qcard{padding:16px 22px;transition:border-color .2s var(--ease)}
+.qcard.open{border-color:color-mix(in srgb,var(--ink) 25%,var(--line))}
+.qcard .qhead{cursor:pointer}
+.qtoggle{display:block;width:100%;background:none;border:0;margin:0;padding:0 30px 0 0;text-align:left;font:inherit;color:inherit;cursor:pointer;position:relative;border-radius:8px}
+.qtoggle::after{content:"";position:absolute;right:6px;top:.4em;width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .2s var(--ease),top .2s var(--ease)}
+.qtoggle[aria-expanded="true"]::after{transform:rotate(-135deg);top:.6em}
+.qtop{display:flex;align-items:center;flex-wrap:wrap}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chips:empty{display:none}
+.qchip{font:600 .66rem var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:var(--surface-2);border-radius:999px;padding:3px 9px}
+.qbody{grid-column:2/4}
+.qcard.open .qbody{border-top:1px solid var(--line);margin-top:14px;padding-top:4px}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.appbar{margin:10px 0 0}
 .q h3{font-size:1.28rem;font-weight:500;letter-spacing:-.02em;line-height:1.25}
 .star{background:none;border:0;font-size:1.6rem;line-height:1;color:var(--muted);cursor:pointer;padding:4px 6px;align-self:start;min-width:44px;min-height:44px;transition:transform .2s var(--ease)}
 .star:hover{transform:scale(1.15);color:var(--star)}
@@ -228,8 +242,8 @@ footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
   .moregrid{grid-template-columns:1fr 1fr}
   .moregrid button{grid-column:1/-1}
   .owngrid{grid-template-columns:1fr}
-  .q{padding:18px 16px}
-  .testing,.ans-wrap{grid-column:1/-1}
+  .q,.qcard{padding:14px 16px}
+  .testing,.ans-wrap,.qbody{grid-column:1/-1}
 }
 dialog#pwDialog{border:0;border-radius:20px;padding:24px;width:min(420px,calc(100vw - 32px));background:var(--surface);color:var(--ink);box-shadow:0 24px 64px rgba(0,0,0,.4)}
 dialog#pwDialog::backdrop{background:rgba(0,0,0,.55)}
@@ -337,7 +351,7 @@ dialog#pwDialog h3{font-size:1.4rem}
     <button class="linkbtn" id="jobBack" type="button">← All jobs</button>
     <div class="jobhead" id="jobHead"></div>
     <div id="jobBanner"></div>
-    <div class="filters"><button type="button" id="starFilter" aria-pressed="false">☆ Starred only (0)</button></div>
+    <div class="filters"><button type="button" id="starFilter" aria-pressed="false">☆ Starred only (0)</button><button type="button" id="qToggleAll">Expand all</button></div>
     <div id="jobQs"></div>
 
     <div class="morebox">
@@ -365,6 +379,7 @@ dialog#pwDialog h3{font-size:1.4rem}
 
     <section class="res" id="appWrap">
       <h2>Application questions <small>tailored answers</small></h2>
+      <div class="appbar hidden" id="appBar"><button type="button" class="mini" id="appToggleAll">Expand all</button></div>
       <div id="appList"></div>
       <div class="morebox">
         <h3>Add application questions</h3>
@@ -727,7 +742,7 @@ $("jobBack").addEventListener("click",openJobs);
 let cur=null; // {job, qs, onlyStarred}
 async function openJob(id){
   show("Job");
-  try{ const {job,qs,apps}=await store.getJob(id); job.ask_questions=Array.isArray(job.ask_questions)?job.ask_questions:[]; cur={job,qs,apps,onlyStarred:false}; renderJob(); }
+  try{ const {job,qs,apps}=await store.getJob(id); job.ask_questions=Array.isArray(job.ask_questions)?job.ask_questions:[]; cur={job,qs,apps,onlyStarred:false,open:loadOpen(job.id)}; renderJob(); }
   catch(e){ setStatus(e.message,true); }
 }
 function renderJob(){
@@ -767,6 +782,51 @@ function updateFilterBtn(){
   b.textContent=`${cur.onlyStarred?"★":"☆"} Starred only (${n})`;
   b.setAttribute("aria-pressed",String(cur.onlyStarred));
 }
+/* ---- collapsible question cards ---- */
+function loadOpen(jobId){ try{ return new Set(JSON.parse(localStorage.getItem("ipd_open_"+jobId)||"[]")); }catch(e){ return new Set(); } }
+function saveOpen(){ try{ localStorage.setItem("ipd_open_"+cur.job.id,JSON.stringify([...cur.open])); }catch(e){} }
+function refreshToggleAll(){
+  for(const [btn,sel] of [["qToggleAll","#jobQs .qcard"],["appToggleAll","#appList .qcard"]]){
+    const rows=[...document.querySelectorAll(sel)];
+    $(btn).textContent = rows.length && rows.every(r=>r.classList.contains("open")) ? "Collapse all" : "Expand all";
+  }
+}
+/* A card has a header that is always visible (number, tags, the question as a toggle, star, status chips)
+   and a body (notes, answer, practice) that expands and collapses. */
+function makeCard({key,num,top,title,star,bodyEls,chips}){
+  const row=el("div","q qcard"), bodyId="qb-"+key, isOpen=cur.open.has(key);
+  row.appendChild(el("div","n qhead",num));
+  const head=el("div","qhead"); if(top) head.appendChild(top);
+  const h3=el("h3"), btn=el("button","qtoggle",title); btn.type="button";
+  btn.setAttribute("aria-expanded",String(isOpen)); btn.setAttribute("aria-controls",bodyId);
+  h3.appendChild(btn); head.appendChild(h3);
+  const chipBox=el("div","chips"); head.appendChild(chipBox);
+  row.appendChild(head);
+  row.appendChild(star||el("span"));
+  const body=el("div","qbody"); body.id=bodyId; body.hidden=!isOpen;
+  bodyEls.forEach(b=>body.appendChild(b)); row.appendChild(body);
+  row.classList.toggle("open",isOpen);
+  const setOpen=(o,persist=true)=>{
+    if(o) cur.open.add(key); else cur.open.delete(key);
+    btn.setAttribute("aria-expanded",String(o)); body.hidden=!o; row.classList.toggle("open",o);
+    if(persist){ saveOpen(); refreshToggleAll(); }
+  };
+  btn.addEventListener("click",()=>setOpen(body.hidden));
+  row.addEventListener("click",e=>{ if(!e.target.closest("button,a,input,textarea,select") && e.target.closest(".qhead")) setOpen(body.hidden); });
+  const refreshChips=()=>{ chipBox.textContent=""; (chips?chips():[]).forEach(c=>chipBox.appendChild(el("span","qchip",c))); };
+  row.addEventListener("qchange",refreshChips); refreshChips();
+  row._setOpen=setOpen;
+  return row;
+}
+function toggleAll(selector){
+  const rows=[...document.querySelectorAll(selector)];
+  const open=!rows.every(r=>r.classList.contains("open"));
+  rows.forEach(r=>r._setOpen(open,false));
+  saveOpen(); refreshToggleAll();
+}
+$("qToggleAll").addEventListener("click",()=>toggleAll("#jobQs .qcard"));
+$("appToggleAll").addEventListener("click",()=>toggleAll("#appList .qcard"));
+
 function renderQs(){
   updateFilterBtn();
   const box=$("jobQs"); box.textContent="";
@@ -777,29 +837,28 @@ function renderQs(){
     h.appendChild(el("small",null,cur.onlyStarred?`${shown.length} starred of ${all.length}`:`${all.length} questions`)); s.appendChild(h);
     if(!shown.length) s.appendChild(el("p","note",cur.onlyStarred?"No starred questions here yet.":"No questions yet."));
     shown.forEach(q=>{
-      const row=el("div","q");
-      row.appendChild(el("div","n",String(all.indexOf(q)+1).padStart(2,"0")));
-      const body=el("div"); body.appendChild(el("span","tag "+cls,label));
+      const top=el("div","qtop"); top.appendChild(el("span","tag "+cls,label));
       if(q.custom){
-        body.appendChild(el("span","yours","Yours"));
+        top.appendChild(el("span","yours","Yours"));
         const del=el("button","delq","Delete"); del.type="button"; del.setAttribute("aria-label","Delete your question");
-        del.addEventListener("click",()=>deleteOwn(q)); body.appendChild(del);
+        del.addEventListener("click",()=>deleteOwn(q)); top.appendChild(del);
       }
-      body.appendChild(el("h3",null,q.question)); row.appendChild(body);
       const star=el("button","star",q.starred?"★":"☆"); star.type="button"; star.setAttribute("aria-pressed",String(!!q.starred));
       star.setAttribute("aria-label",q.starred?"Unstar this question":"Star this question");
       star.addEventListener("click",()=>toggleStar(q));
-      row.appendChild(star);
-      if(q.testing){ const t=el("div","testing"); t.appendChild(el("b",null,"What they're testing")); t.appendChild(document.createTextNode(q.testing)); row.appendChild(t); }
-      row.appendChild(makeAnswerBlock(q,{
+      const bodyEls=[];
+      if(q.testing){ const t=el("div","testing"); t.appendChild(el("b",null,"What they're testing")); t.appendChild(document.createTextNode(q.testing)); bodyEls.push(t); }
+      bodyEls.push(makeAnswerBlock(q,{
         draft:async()=>(await draftAnswers([{question:q.question,kind:q.kind,testing:q.testing}]))[0],
         save:t=>store.setAnswer(q.id,t)
       }));
-      row.appendChild(makePracticeBlock(q));
-      s.appendChild(row);
+      bodyEls.push(makePracticeBlock(q));
+      s.appendChild(makeCard({key:q.id,num:String(all.indexOf(q)+1).padStart(2,"0"),top,title:q.question,star,bodyEls,
+        chips:()=>[q.answer&&"AI draft",q.my_answer&&"Your answer",q.feedback&&"Feedback"].filter(Boolean)}));
     });
     box.appendChild(s);
   });
+  refreshToggleAll();
 }
 /* ---- your own questions ---- */
 async function addOwn(){
@@ -810,7 +869,8 @@ async function addOwn(){
   try{
     const start=cur.qs.reduce((m,x)=>Math.max(m,x.position),-1)+1;
     const saved=await store.addQuestions(cur.job.id,[{kind,question:q,testing,custom:true}],me.id,start);
-    cur.qs.push(...saved); $("ownQ").value=""; $("ownTesting").value=""; renderQs(); setStatus("Added your question.");
+    cur.qs.push(...saved); saved.forEach(s=>cur.open.add(s.id)); saveOpen();
+    $("ownQ").value=""; $("ownTesting").value=""; renderQs(); setStatus("Added your question.");
   }catch(e){ setStatus(e.message,true); }
   finally{ btn.disabled=false; }
 }
@@ -932,7 +992,7 @@ function makeAnswerBlock(obj,opts){
   }
   function view(){
     wrap.textContent="";
-    if(!obj.answer){ wrap.appendChild(mini("Draft an answer",run)); return; }
+    if(!obj.answer){ wrap.appendChild(mini("Draft an answer",run)); notify(); return; }
     wrap.appendChild(el("div","ans-lbl","Your answer draft"));
     wrap.appendChild(el("div","anstext",obj.answer));
     const bar=el("div","ansbar");
@@ -940,23 +1000,24 @@ function makeAnswerBlock(obj,opts){
     bar.appendChild(mini("Edit",edit));
     bar.appendChild(mini("Regenerate",run));
     wrap.appendChild(bar);
+    notify();
   }
+  function notify(){ wrap.dispatchEvent(new CustomEvent("qchange",{bubbles:true})); } // lets the card refresh its status chips
   view(); return wrap;
 }
 
 function renderApps(){
   const box=$("appList"); box.textContent="";
-  if(!cur.apps.length){ box.appendChild(el("p","note","No application questions found. If the application form asks any, paste them below.")); return; }
+  $("appBar").classList.toggle("hidden",!cur.apps.length);
+  if(!cur.apps.length){ box.appendChild(el("p","note","No application questions found. If the application form asks any, paste them below.")); refreshToggleAll(); return; }
   cur.apps.forEach((a,i)=>{
-    const row=el("div","q");
-    row.appendChild(el("div","n",String(i+1).padStart(2,"0")));
-    const body=el("div"); body.appendChild(el("h3",null,a.question)); row.appendChild(body);
-    row.appendChild(makeAnswerBlock(a,{
+    const bodyEls=[makeAnswerBlock(a,{
       draft:async()=>(await draftAnswers([{question:a.question}]))[0],
       save:t=>store.setAppAnswer(a.id,t)
-    }));
-    box.appendChild(row);
+    })];
+    box.appendChild(makeCard({key:a.id,num:String(i+1).padStart(2,"0"),top:null,title:a.question,star:null,bodyEls,chips:null}));
   });
+  refreshToggleAll();
 }
 async function addApplication(){
   const lines=$("appNew").value.split(/\r?\n/).map(s=>s.replace(/^\s*(?:\d+[.)]|[-*•])\s*/,"").trim()).filter(s=>s.length>=4).slice(0,15);
@@ -1429,8 +1490,9 @@ function makePracticeBlock(q){
   const words=s=>(s.trim().match(/\S+/g)||[]).length;
   const fail=e=>setStatus(e instanceof TypeError?"Network error. Check your connection and that the key is valid.":e.message,true);
   const mini=(label,fn)=>{ const b=el("button","mini",label); b.type="button"; b.addEventListener("click",()=>fn(b)); return b; };
+  const notify=()=>wrap.dispatchEvent(new CustomEvent("qchange",{bubbles:true})); // lets the card refresh its status chips
   async function persist(text){
-    q.my_answer=text;
+    q.my_answer=text; notify();
     try{ await store.setPractice(q.id,{my_answer:text,feedback:q.feedback||null}); }
     catch(e){ setStatus("Couldn't save your answer. "+e.message,true); }
   }
@@ -1449,7 +1511,7 @@ function makePracticeBlock(q){
   }
   function render(){
     wrap.textContent="";
-    if(!open){ wrap.appendChild(mini("Practice your answer",()=>{ open=true; render(); wrap.querySelector("textarea").focus(); })); return; }
+    if(!open){ wrap.appendChild(mini("Practice your answer",()=>{ open=true; render(); wrap.querySelector("textarea").focus(); })); notify(); return; }
     wrap.appendChild(el("div","ans-lbl","Your answer"));
     const ta=el("textarea"); ta.value=q.my_answer||""; ta.setAttribute("aria-label","Your answer");
     ta.placeholder="Type how you'd answer out loud. Aim for 60 to 90 seconds, roughly 150 to 220 words.";
@@ -1470,6 +1532,7 @@ function makePracticeBlock(q){
     }));
     wrap.appendChild(ta); wrap.appendChild(count); wrap.appendChild(bar);
     if(q.feedback) wrap.appendChild(feedbackBox(ta));
+    notify();
   }
   render(); return wrap;
 }
