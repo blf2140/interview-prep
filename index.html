@@ -248,7 +248,7 @@ footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
     </div>
     <div class="island acctisland">
       <button type="button" id="themeBtn" class="themebtn" aria-pressed="false"><span class="ic">☾</span><span class="tx"> Dark</span></button>
-      <div id="userbar" class="userbar hidden"><span id="whoWrap"><span id="whoLabel">Signed in as</span> <b id="whoami"></b></span><button type="button" id="logoutBtn" class="mini signout">Sign out</button><button type="button" id="signinBtn" class="dark" title="Sign in or create an account">Sign in</button></div>
+      <div id="userbar" class="userbar"><span id="whoWrap" class="hidden"><span id="whoLabel">Signed in as</span> <b id="whoami"></b></span><button type="button" id="logoutBtn" class="mini signout hidden">Sign out</button><button type="button" id="signinBtn" class="dark" title="Sign in or create an account">Sign in</button></div>
     </div>
   </div>
   <div class="row navrow hidden" id="navrow"><nav id="secnav" class="island secnav" aria-label="Sections on this page"></nav></div>
@@ -399,7 +399,16 @@ const AUTH_EMAIL_DOMAIN = "users.interviewprep.app"; // usernames map to <userna
 
 const MODEL = "claude-sonnet-5-5";
 const $ = id => document.getElementById(id);
-const CONFIGURED = !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+let CONFIGURED = !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+let libFailed = false; // true when the sign-in library couldn't be loaded from any CDN
+function loadScript(src){ return new Promise(res=>{ const s=document.createElement("script"); s.src=src; s.onload=()=>res(true); s.onerror=()=>res(false); document.head.appendChild(s); }); }
+async function ensureSupabase(){
+  if(window.supabase) return true;
+  for(const src of ["https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js","https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"]){
+    if(await loadScript(src) && window.supabase) return true;
+  }
+  return false;
+}
 
 const SAMPLE_JOB = {
   title:"Sample: Data Analyst", company:"Acme Onboarding Co. (sample)",
@@ -482,7 +491,7 @@ function copyText(text, btn){
 
 /* =========================== DATA LAYER =========================== */
 /* Supabase backend (accounts + Row Level Security) */
-const sb = CONFIGURED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+let sb = CONFIGURED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const authEmail = u => `${u}@${AUTH_EMAIL_DOMAIN}`;
 const throwIf = e => { if(e) throw new Error(e.message||"Something went wrong."); };
 
@@ -596,7 +605,6 @@ function show(v){
 }
 function updateUserbar(){
   const guest=!me||me.guest;
-  $("userbar").classList.toggle("hidden",!CONFIGURED);
   $("whoWrap").classList.toggle("hidden",guest);
   $("whoami").textContent=guest?"":me.username;
   $("whoami").title=guest?"":me.username;
@@ -604,7 +612,15 @@ function updateUserbar(){
   $("signinBtn").classList.toggle("hidden",!guest);
 }
 $("homeBtn").addEventListener("click",()=>openJobs());
-$("signinBtn").addEventListener("click",()=>show("Auth"));
+$("signinBtn").addEventListener("click",()=>{
+  if(!CONFIGURED){
+    setStatus(libFailed
+      ? "Accounts are unavailable: the sign-in library couldn't load. A browser extension or network filter may be blocking unpkg.com or jsdelivr.net. You can keep using the app as a guest."
+      : "Accounts aren't set up on this site yet. You can keep using the app as a guest.",true);
+    return;
+  }
+  show("Auth");
+});
 $("guestBtn").addEventListener("click",()=>openJobs());
 
 /* Move browser-only (guest) jobs into the signed-in account. */
@@ -1352,8 +1368,17 @@ setKeyState("none");
 try{ const k=localStorage.getItem("ipd_key"); if(k){ $("apiKey").value=k; $("remember").checked=true; checkKey(); } }catch(e){}
 async function boot(){
   me=GUEST; store=local;
-  if(!CONFIGURED) $("cfgWarn").classList.remove("hidden");
-  else{
+  if(!CONFIGURED && SUPABASE_URL && SUPABASE_ANON_KEY){
+    // the CDN script was blocked or failed: try other CDNs before giving up on accounts
+    if(await ensureSupabase()){ CONFIGURED=true; sb=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+    else libFailed=true;
+  }
+  if(!CONFIGURED){
+    $("cfgWarn").textContent = libFailed
+      ? "Accounts are unavailable because the sign-in library couldn't load (a browser extension or network filter may be blocking unpkg.com or jsdelivr.net). You can keep using the app as a guest; your prep is saved in this browser."
+      : "Demo mode: accounts aren't set up on this site, so your prep is saved only in this browser.";
+    $("cfgWarn").classList.remove("hidden");
+  }else{
     // Never let a slow or stuck Supabase session lookup hide the account bar or the page: wait briefly, then
     // show the guest view and switch to the signed-in view if the session turns up later.
     const sessionP=remote.session().catch(()=>null);
