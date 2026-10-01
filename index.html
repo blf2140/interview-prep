@@ -47,15 +47,17 @@ h1,h2,h3{font-family:var(--display);font-weight:500;line-height:1.1;letter-spaci
 
 /* ---------- pinned chrome: floating islands ---------- */
 #chrome{position:fixed;top:0;left:0;right:0;z-index:40;padding:12px 16px 0;pointer-events:none}
-#chrome .row{display:flex;justify-content:space-between;align-items:center;gap:var(--island-gap);max-width:1160px;margin:0 auto;flex-wrap:wrap}
+#chrome .row{display:flex;justify-content:center;align-items:center;gap:var(--island-gap);max-width:1320px;margin:0 auto;flex-wrap:wrap}
 #chrome .navrow{justify-content:center;margin-top:var(--island-gap)}
 .island{pointer-events:auto;height:var(--island-h);background:var(--island);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);border-radius:16px;box-shadow:var(--shadow);padding:0 8px;display:flex;align-items:center;gap:10px}
 .brandisland{padding:0 18px;gap:10px;border:0;color:var(--ink);font:inherit;cursor:pointer;text-align:left;transition:transform .2s var(--ease)}
 .brandisland:hover{transform:translateY(-1px)}
 .logo-dot{width:12px;height:12px;border-radius:50%;background:var(--yellow);box-shadow:0 0 0 3px rgba(233,211,82,.3);flex:none}
+.brandisland{flex:none}
 .brand{font:500 1.08rem var(--display);letter-spacing:-.02em;white-space:nowrap}
-.keyisland{position:relative;z-index:3;flex:1 1 360px}
-.keyisland input[type=password]{flex:1;min-width:120px;width:auto;height:38px;border-radius:10px;padding:0 12px;font-size:.9rem}
+.brand .short{display:none}
+.keyisland{position:relative;z-index:3;flex:0 1 460px;min-width:0}
+.keyisland input[type=password]{flex:1 1 150px;min-width:90px;width:auto;height:38px;border-radius:10px;padding:0 12px;font-size:.9rem}
 .help{flex:none;width:20px;height:20px;border-radius:50%;border:1px solid var(--muted);background:transparent;color:var(--muted);font:600 .7rem/1 var(--sans);cursor:pointer;padding:0;opacity:.55;transition:opacity .2s var(--ease)}
 .help:hover,.help:focus-visible,.help[aria-expanded="true"]{opacity:1}
 .tip{position:absolute;top:calc(100% + var(--island-gap));right:0;width:min(340px,calc(100vw - 32px));background:var(--toast-bg);color:var(--toast-ink);border-radius:14px;padding:14px 16px;font-size:.88rem;line-height:1.45;box-shadow:0 12px 32px rgba(0,0,0,.28);z-index:5}
@@ -63,19 +65,19 @@ h1,h2,h3{font-family:var(--display);font-weight:500;line-height:1.1;letter-spaci
 .tip p+p{margin-top:8px;font-weight:600}
 .keyisland[data-state="ok"] input[type=password]{border-color:var(--green);box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 35%,transparent)}
 .keyisland[data-state="bad"] input[type=password]{border-color:var(--danger);box-shadow:0 0 0 2px color-mix(in srgb,var(--danger) 30%,transparent)}
-.keystate{display:flex;align-items:center;gap:7px;font:600 .82rem var(--sans);white-space:nowrap;height:34px;padding:0 12px;border-radius:999px;background:var(--surface-2)}
+.keystate{flex:none;display:flex;align-items:center;gap:7px;font:600 .82rem var(--sans);white-space:nowrap;height:34px;padding:0 12px;border-radius:999px;background:var(--surface-2)}
 .dot{width:9px;height:9px;border-radius:50%;background:#9b9b9b;flex:none}
 .keyisland[data-state="ok"] .dot{background:var(--green)}
 .keyisland[data-state="bad"] .dot{background:var(--danger)}
 .keyisland[data-state="wait"] .dot{background:var(--yellow);animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}
-.remember{font-size:.8rem;color:var(--muted);display:flex;gap:6px;align-items:center;white-space:nowrap;margin:0}
+.remember{font-size:.8rem;color:var(--muted);display:flex;gap:6px;align-items:center;white-space:nowrap;margin:0;flex:none}
 .remember input{width:auto}
-.acctisland{padding:0 8px}
+.acctisland{padding:0 8px;flex:none}
 .userbar{display:flex;align-items:center;gap:10px;font-size:.88rem;color:var(--muted)}
 .userbar b{color:var(--ink)}
 #whoWrap{white-space:nowrap;display:flex;align-items:center;gap:5px;flex:none}
-#whoami{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#whoami{display:inline-block;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 button.signout{height:34px;padding:0 14px;white-space:nowrap}
 .themebtn{height:36px;background:var(--surface-2);color:var(--ink);border:0;border-radius:999px;padding:0 13px;font:600 .82rem var(--sans);cursor:pointer;white-space:nowrap;transition:transform .2s var(--ease)}
 .themebtn:hover{transform:translateY(-1px)}
@@ -196,28 +198,29 @@ section.res>h2 small{font:600 .74rem var(--sans);color:var(--muted);letter-spaci
 .copy{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.08);color:#FAFAFA;border:0;border-radius:999px;padding:5px 12px;font:600 .75rem var(--sans);cursor:pointer}
 .copy:hover{background:var(--yellow);color:#0F0F0F}
 footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
-@media (max-width:1000px){
-  .brandisland{order:1;flex:1 1 0;min-width:0}
-  .brand{overflow:hidden;text-overflow:ellipsis}
-  .acctisland{order:2;flex:none}
-  .keyisland{order:3;flex:1 1 100%}
+@media (max-width:1260px){
+  /* not enough room for one row: brand + account on row 1, the key bar centred on row 2 */
+  .acctisland{order:2}
+  .keyisland{order:3}
 }
 @media (max-width:720px){
   :root{--island-h:48px;--island-gap:8px}
   #chrome{padding:8px 10px 0}
   .brandisland{padding:0 14px;gap:8px}
   .brand{font-size:.95rem}
+  .brand .full{display:none}
+  .brand .short{display:inline}
   #whoLabel{display:none}
-  #whoami{max-width:64px}
+  #whoami{max-width:72px}
   .themebtn .tx{display:none}
   .acctisland{padding:0 6px}
-  .keyisland{padding:0 6px}
-  .keyisland input[type=password]{height:34px}
+  .keyisland{padding:0 6px;flex:1 1 100%}
+  .keyisland input[type=password]{height:34px;flex:1 1 0;min-width:48px}
   .keystate{height:32px;padding:0 10px;font-size:.78rem}
   .themebtn,button.dark{height:34px}
   button.signout{height:32px;padding:0 12px}
   .navpill{height:34px;padding:0 12px;font-size:.85rem}
-  .remember{display:none}
+  .remember span{display:none}
   .inputs{grid-template-columns:1fr}
   textarea{min-height:200px}
   button.go{width:100%}
@@ -234,14 +237,14 @@ footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
 <body>
 <header id="chrome">
   <div class="row">
-    <button type="button" id="homeBtn" class="island brandisland" aria-label="Interview Prep Desk, go to home"><span class="logo-dot" aria-hidden="true"></span><span class="brand">Interview Prep Desk</span></button>
+    <button type="button" id="homeBtn" class="island brandisland" aria-label="Interview Prep Desk, go to home"><span class="logo-dot" aria-hidden="true"></span><span class="brand"><span class="full">Interview Prep Desk</span><span class="short">Prep Desk</span></span></button>
     <div class="island keyisland" id="keywrap" data-state="none">
       <label class="sr" for="apiKey">Anthropic API key</label>
       <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your Anthropic API key" title="Sent only to api.anthropic.com from your browser. Never saved to your account.">
       <span class="keystate" id="keyState" role="status" aria-live="polite"><i class="dot" aria-hidden="true"></i><span id="keyLabel">Sample mode</span></span>
       <button type="button" class="help" id="keyHelp" aria-label="What does this status mean?" aria-expanded="false" aria-controls="keyTip">?</button>
       <div class="tip hidden" id="keyTip" role="tooltip"><p>We check your key with a free request to Anthropic that uses no tokens. Your key stays in this browser and is only ever sent to api.anthropic.com.</p><p id="keyTipState"></p></div>
-      <label class="remember"><input type="checkbox" id="remember"> Remember</label>
+      <label class="remember" title="Remember this key in this browser"><input type="checkbox" id="remember"><span>Remember</span></label>
     </div>
     <div class="island acctisland">
       <button type="button" id="themeBtn" class="themebtn" aria-pressed="false"><span class="ic">☾</span><span class="tx"> Dark</span></button>
@@ -1347,13 +1350,22 @@ applyTheme(document.documentElement.dataset.theme || (matchMedia("(prefers-color
 /* =========================== BOOT =========================== */
 setKeyState("none");
 try{ const k=localStorage.getItem("ipd_key"); if(k){ $("apiKey").value=k; $("remember").checked=true; checkKey(); } }catch(e){}
-(async function boot(){
-  me=GUEST;
+async function boot(){
+  me=GUEST; store=local;
   if(!CONFIGURED) $("cfgWarn").classList.remove("hidden");
-  else{ try{ const s=await remote.session(); if(s){ me=s; store=remoteStore; } }catch(e){} }
+  else{
+    // Never let a slow or stuck Supabase session lookup hide the account bar or the page: wait briefly, then
+    // show the guest view and switch to the signed-in view if the session turns up later.
+    const sessionP=remote.session().catch(()=>null);
+    const first=await Promise.race([sessionP,new Promise(res=>setTimeout(()=>res("slow"),1500))]);
+    if(first==="slow"){
+      sessionP.then(s=>{ if(s && me.guest){ me=s; store=remoteStore; updateUserbar(); openJobs(); } });
+    }else if(first){ me=first; store=remoteStore; }
+  }
   updateUserbar();
   openJobs();
-})();
+}
+boot();
 </script>
 </body>
 </html>
