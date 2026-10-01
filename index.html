@@ -680,7 +680,9 @@ $("authForm").addEventListener("submit",async e=>{
     try{ await unlockVault(password); }catch(e){ console.error(e); }
     $("authPass").value="";
     const msg=await importGuest();
-    await openJobs(); if(msg) setStatus(msg.trim());
+    await openJobs();
+    const note=[msg&&msg.trim(),pendingNote].filter(Boolean).join(" "); pendingNote="";
+    if(note) setStatus(note);
   }catch(err){ setStatus(err.message,true); }
   finally{ btn.disabled=false; }
 });
@@ -1245,7 +1247,7 @@ const te=new TextEncoder(), td=new TextDecoder();
 const toB64=u=>btoa(String.fromCharCode(...u)), fromB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 let vault=null;            // {key: CryptoKey, salt: Uint8Array}; memory only
 let accountBlob=undefined; // undefined = not loaded, null = none saved, string = ciphertext, false = unavailable
-let keyEdited=false, pwPrompted=false, acctTimer=null;
+let keyEdited=false, pwPrompted=false, acctTimer=null, pendingNote="";
 const signedIn=()=>!!(me && !me.guest && CONFIGURED);
 async function deriveVaultKey(password,salt){
   const base=await crypto.subtle.importKey("raw",te.encode(password),"PBKDF2",false,["deriveKey"]);
@@ -1277,7 +1279,7 @@ async function unlockVault(password,quiet){
   if(typed && $("remember").checked){ keyEdited=true; scheduleAccountSave(); }
   else if(restored && !typed){
     $("apiKey").value=restored; $("remember").checked=true; persistKey(); checkKey();
-    setStatus("Restored your saved API key.");
+    pendingNote="Restored your saved API key.";
   }
 }
 function scheduleAccountSave(){ clearTimeout(acctTimer); acctTimer=setTimeout(saveAccountKey,300); }
