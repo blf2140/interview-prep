@@ -231,6 +231,9 @@ footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
   .q{padding:18px 16px}
   .testing,.ans-wrap{grid-column:1/-1}
 }
+dialog#pwDialog{border:0;border-radius:20px;padding:24px;width:min(420px,calc(100vw - 32px));background:var(--surface);color:var(--ink);box-shadow:0 24px 64px rgba(0,0,0,.4)}
+dialog#pwDialog::backdrop{background:rgba(0,0,0,.55)}
+dialog#pwDialog h3{font-size:1.4rem}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -243,8 +246,8 @@ footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
       <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your Anthropic API key" title="Sent only to api.anthropic.com from your browser. Never saved to your account.">
       <span class="keystate" id="keyState" role="status" aria-live="polite"><i class="dot" aria-hidden="true"></i><span id="keyLabel">Sample mode</span></span>
       <button type="button" class="help" id="keyHelp" aria-label="What does this status mean?" aria-expanded="false" aria-controls="keyTip">?</button>
-      <div class="tip hidden" id="keyTip" role="tooltip"><p>We check your key with a free request to Anthropic that uses no tokens. Your key stays in this browser and is only ever sent to api.anthropic.com.</p><p id="keyTipState"></p></div>
-      <label class="remember" title="Remember this key in this browser"><input type="checkbox" id="remember"><span>Remember</span></label>
+      <div class="tip hidden" id="keyTip" role="tooltip"><p>We check your key with a free request to Anthropic that uses no tokens. Your key is only ever sent to api.anthropic.com. Tick Remember to keep it in this browser, and, if you're signed in, in your account as an encrypted copy only your password can unlock.</p><p id="keyTipState"></p></div>
+      <label class="remember" title="Remember this key in this browser, and in your account (encrypted with your password) when you're signed in"><input type="checkbox" id="remember"><span>Remember</span></label>
     </div>
     <div class="island acctisland">
       <button type="button" id="themeBtn" class="themebtn" aria-pressed="false"><span class="ic">☾</span><span class="tx"> Dark</span></button>
@@ -385,8 +388,19 @@ footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
     <section class="res" id="jobDiffsWrap"><h2>Differentiators <small>ways to stand out</small></h2><div id="jobDiffs"></div></section>
   </section>
 
-  <footer>Model: claude-sonnet-5-5. Your API key is sent only to api.anthropic.com from your browser and is never saved to your account. Review generated prompts before running them.</footer>
+  <footer>Model: claude-sonnet-5-5. Your API key is sent only to api.anthropic.com from your browser. If you're signed in and tick Remember, an encrypted copy is saved to your account that only your password can unlock. Review generated prompts before running them.</footer>
 </div>
+
+<dialog id="pwDialog" aria-labelledby="pwTitle">
+  <form id="pwForm" method="dialog">
+    <h3 id="pwTitle">Save your API key to your account</h3>
+    <p class="note" style="margin:8px 0 14px">Your key is encrypted with your password before it leaves this browser, so only you can read it. Enter your password to turn this on.</p>
+    <label class="field" for="pwInput">Password</label>
+    <input id="pwInput" type="password" autocomplete="current-password" required>
+    <div class="note" id="pwErr" role="alert" style="color:var(--danger);min-height:1.2em"></div>
+    <div class="ansbar" style="margin-top:12px"><button class="go" id="pwOk" type="submit">Save key</button><button class="ghost" id="pwCancel" type="button">Not now</button></div>
+  </form>
+</dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -662,7 +676,9 @@ $("authForm").addEventListener("submit",async e=>{
   const btn=$("authGo"); btn.disabled=true; setStatus("");
   try{
     me = authMode==="in" ? await remote.signIn(username,password) : await remote.signUp(username,password,email);
-    store=remoteStore; $("authPass").value=""; updateUserbar();
+    store=remoteStore; updateUserbar();
+    try{ await unlockVault(password); }catch(e){ console.error(e); }
+    $("authPass").value="";
     const msg=await importGuest();
     await openJobs(); if(msg) setStatus(msg.trim());
   }catch(err){ setStatus(err.message,true); }
@@ -672,6 +688,7 @@ $("authForm").addEventListener("submit",async e=>{
 $("logoutBtn").addEventListener("click",async()=>{
   try{ await remote.signOut(); }catch(e){}
   me=GUEST; store=local; cur=null; $("apiKey").value=""; try{ localStorage.removeItem("ipd_key"); }catch(e){} $("remember").checked=false; setKeyState("none");
+  vault=null; accountBlob=undefined; keyEdited=false; pwPrompted=false; clearTimeout(acctTimer); // the saved copy stays on the account; it comes back at the next sign-in
   updateUserbar(); openJobs(); setStatus("Signed out.");
 });
 
@@ -1189,7 +1206,7 @@ document.addEventListener("click",e=>{ if(!keyTip.contains(e.target)) setTip(fal
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") setTip(false); });
 function noteKeyResult(key,state){
   keyVerified.set(key,state);
-  if($("apiKey").value.trim()===key) setKeyState(state);
+  if($("apiKey").value.trim()===key){ setKeyState(state); if(state==="ok") scheduleAccountSave(); }
 }
 async function checkKey(){
   const key=$("apiKey").value.trim();
@@ -1207,12 +1224,116 @@ async function checkKey(){
 }
 $("apiKey").addEventListener("input",()=>{
   clearTimeout(keyTimer);
-  const k=$("apiKey").value.trim(); persistKey();
+  const k=$("apiKey").value.trim(); persistKey(); keyEdited=true;
   if(!k){ setKeyState("none"); return; }
   setKeyState(keyVerified.get(k)||"wait");
   if(!keyVerified.has(k)) keyTimer=setTimeout(checkKey,600);
+  else if(keyVerified.get(k)==="ok") scheduleAccountSave();
 });
-$("remember").addEventListener("change",persistKey);
+$("remember").addEventListener("change",()=>{
+  persistKey();
+  if($("remember").checked){ keyEdited=true; scheduleAccountSave(); }
+  else clearAccountKey();
+});
+
+/* =========================== ACCOUNT KEY VAULT ===========================
+   Signed-in users who tick "Remember" get an encrypted copy of their API key saved on their account.
+   The browser encrypts it (AES-GCM, key derived from the account password with PBKDF2); only the ciphertext
+   leaves the browser, so neither the site owner nor the database can read it. The password-derived key lives
+   in memory only, and is set up when the user signs in. */
+const te=new TextEncoder(), td=new TextDecoder();
+const toB64=u=>btoa(String.fromCharCode(...u)), fromB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+let vault=null;            // {key: CryptoKey, salt: Uint8Array}; memory only
+let accountBlob=undefined; // undefined = not loaded, null = none saved, string = ciphertext, false = unavailable
+let keyEdited=false, pwPrompted=false, acctTimer=null;
+const signedIn=()=>!!(me && !me.guest && CONFIGURED);
+async function deriveVaultKey(password,salt){
+  const base=await crypto.subtle.importKey("raw",te.encode(password),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:250000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function fetchAccountBlob(){
+  if(!signedIn()){ accountBlob=undefined; return undefined; }
+  try{
+    const {data,error}=await sb.from("profiles").select("api_key_enc").eq("id",me.id).maybeSingle();
+    accountBlob=(error||!data)?false:(data.api_key_enc||null); // error: the column may not exist yet
+  }catch(e){ accountBlob=false; }
+  return accountBlob;
+}
+/* Called with the password the user just typed. quiet=true only sets up the vault (no restoring or saving). */
+async function unlockVault(password,quiet){
+  if(!window.crypto||!crypto.subtle) return;
+  const blob=await fetchAccountBlob(); if(blob===false) return;
+  let restored=null;
+  if(blob){
+    try{
+      const o=JSON.parse(blob), salt=fromB64(o.s), k=await deriveVaultKey(password,salt);
+      restored=td.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:fromB64(o.i)},k,fromB64(o.c)));
+      vault={key:k,salt};
+    }catch(e){ console.error("Couldn't unlock the saved API key",e); }
+  }
+  if(!vault){ const salt=crypto.getRandomValues(new Uint8Array(16)); vault={key:await deriveVaultKey(password,salt),salt}; }
+  if(quiet) return;
+  const typed=$("apiKey").value.trim();
+  if(typed && $("remember").checked){ keyEdited=true; scheduleAccountSave(); }
+  else if(restored && !typed){
+    $("apiKey").value=restored; $("remember").checked=true; persistKey(); checkKey();
+    setStatus("Restored your saved API key.");
+  }
+}
+function scheduleAccountSave(){ clearTimeout(acctTimer); acctTimer=setTimeout(saveAccountKey,300); }
+async function saveAccountKey(){
+  if(!signedIn()||accountBlob===false) return;
+  const key=$("apiKey").value.trim();
+  if(!$("remember").checked||!key||keyVerified.get(key)!=="ok") return; // only save keys Anthropic accepted
+  if(accountBlob===undefined) await fetchAccountBlob();
+  if(accountBlob===false) return;
+  if(!(keyEdited||!accountBlob)) return; // already saved and unchanged
+  if(!vault){
+    if(pwPrompted) return; pwPrompted=true;
+    if(!(await askPassword())) { setStatus("Your key is remembered in this browser only."); return; }
+  }
+  if(!vault) return;
+  try{
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},vault.key,te.encode(key)));
+    const blob=JSON.stringify({v:1,s:toB64(vault.salt),i:toB64(iv),c:toB64(ct)});
+    const {error}=await sb.from("profiles").update({api_key_enc:blob}).eq("id",me.id);
+    if(error) throw error;
+    accountBlob=blob; keyEdited=false; setStatus("API key saved to your account (encrypted).");
+  }catch(e){ console.error(e); setStatus("Couldn't save your API key to your account. "+(e.message||""),true); }
+}
+async function clearAccountKey(){
+  if(!signedIn()||accountBlob===false) return;
+  try{
+    const {error}=await sb.from("profiles").update({api_key_enc:null}).eq("id",me.id);
+    if(!error){ accountBlob=null; setStatus("Removed your API key from your account."); }
+  }catch(e){ console.error(e); }
+}
+/* Signed-in users who were already signed in (no password in memory) confirm it once to turn on saving. */
+function askPassword(){
+  return new Promise(resolve=>{
+    const d=$("pwDialog"), inp=$("pwInput"), ok=$("pwOk"), err=$("pwErr");
+    inp.value=""; err.textContent=""; ok.disabled=false;
+    const finish=v=>{ d.close(); d.removeEventListener("cancel",onCancel); $("pwForm").removeEventListener("submit",onSubmit); $("pwCancel").removeEventListener("click",onNo); resolve(v); };
+    const onCancel=e=>{ e.preventDefault(); finish(false); };
+    const onNo=()=>finish(false);
+    const onSubmit=async e=>{
+      e.preventDefault(); ok.disabled=true; err.textContent="";
+      try{
+        const {error}=await sb.auth.signInWithPassword({email:authEmail(me.username),password:inp.value});
+        if(error) throw new Error("That password doesn't match this account.");
+        await unlockVault(inp.value,true);
+        finish(!!vault);
+      }catch(ex){ err.textContent=ex.message; ok.disabled=false; }
+    };
+    d.addEventListener("cancel",onCancel); $("pwForm").addEventListener("submit",onSubmit); $("pwCancel").addEventListener("click",onNo);
+    d.showModal(); inp.focus();
+  });
+}
+async function afterSessionRestored(){
+  await fetchAccountBlob();
+  if(accountBlob && !$("apiKey").value.trim()) setStatus("Your account has a saved API key. Sign out and back in to unlock it, or paste it again.");
+}
 
 /* =========================== PINNED CHROME + SECTION MENU =========================== */
 const chromeEl=$("chrome");
@@ -1384,11 +1505,12 @@ async function boot(){
     const sessionP=remote.session().catch(()=>null);
     const first=await Promise.race([sessionP,new Promise(res=>setTimeout(()=>res("slow"),1500))]);
     if(first==="slow"){
-      sessionP.then(s=>{ if(s && me.guest){ me=s; store=remoteStore; updateUserbar(); openJobs(); } });
+      sessionP.then(s=>{ if(s && me.guest){ me=s; store=remoteStore; updateUserbar(); openJobs(); afterSessionRestored(); } });
     }else if(first){ me=first; store=remoteStore; }
   }
   updateUserbar();
   openJobs();
+  if(signedIn()) afterSessionRestored();
 }
 boot();
 </script>

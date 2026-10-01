@@ -44,6 +44,10 @@ alter table public.questions add column if not exists my_answer text;
 alter table public.questions add column if not exists feedback jsonb;
 alter table public.jobs add column if not exists ask_questions jsonb not null default '[]'::jsonb;
 
+-- Added with "remember my API key": an AES-GCM ciphertext made in the browser with a key derived from the
+-- user's password. The server never sees the key or the password-derived key.
+alter table public.profiles add column if not exists api_key_enc text;
+
 -- Questions the job application itself asks, with tailored answers
 create table if not exists public.application_questions (
   id uuid primary key default gen_random_uuid(),
