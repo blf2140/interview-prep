@@ -21,6 +21,7 @@
   --sans:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --ease:cubic-bezier(.2,.715,.205,.99); --chrome-h:96px;
+  --island-h:52px; --island-gap:10px;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -46,17 +47,23 @@ h1,h2,h3{font-family:var(--display);font-weight:500;line-height:1.1;letter-spaci
 
 /* ---------- pinned chrome: floating islands ---------- */
 #chrome{position:fixed;top:0;left:0;right:0;z-index:40;padding:12px 16px 0;pointer-events:none}
-#chrome .row{display:flex;justify-content:space-between;align-items:center;gap:10px;max-width:1160px;margin:0 auto;flex-wrap:wrap}
-#chrome .navrow{justify-content:center;margin-top:8px}
-.island{pointer-events:auto;background:var(--island);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);border-radius:16px;box-shadow:var(--shadow);padding:8px;display:flex;align-items:center;gap:10px}
-.brandisland{padding:10px 16px;gap:10px}
-.logo-dot{width:12px;height:12px;border-radius:50%;background:var(--yellow);box-shadow:0 0 0 3px rgba(233,211,82,.3)}
+#chrome .row{display:flex;justify-content:space-between;align-items:center;gap:var(--island-gap);max-width:1160px;margin:0 auto;flex-wrap:wrap}
+#chrome .navrow{justify-content:center;margin-top:var(--island-gap)}
+.island{pointer-events:auto;height:var(--island-h);background:var(--island);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);border-radius:16px;box-shadow:var(--shadow);padding:0 8px;display:flex;align-items:center;gap:10px}
+.brandisland{padding:0 18px;gap:10px;border:0;color:var(--ink);font:inherit;cursor:pointer;text-align:left;transition:transform .2s var(--ease)}
+.brandisland:hover{transform:translateY(-1px)}
+.logo-dot{width:12px;height:12px;border-radius:50%;background:var(--yellow);box-shadow:0 0 0 3px rgba(233,211,82,.3);flex:none}
 .brand{font:500 1.08rem var(--display);letter-spacing:-.02em;white-space:nowrap}
-.keyisland{flex:1 1 360px;max-width:640px;margin-left:auto}
-.keyisland input[type=password]{flex:1;min-width:120px;width:auto;border-radius:10px;padding:9px 12px;font-size:.9rem}
+.keyisland{position:relative;z-index:3;flex:1 1 360px}
+.keyisland input[type=password]{flex:1;min-width:120px;width:auto;height:38px;border-radius:10px;padding:0 12px;font-size:.9rem}
+.help{flex:none;width:20px;height:20px;border-radius:50%;border:1px solid var(--muted);background:transparent;color:var(--muted);font:600 .7rem/1 var(--sans);cursor:pointer;padding:0;opacity:.55;transition:opacity .2s var(--ease)}
+.help:hover,.help:focus-visible,.help[aria-expanded="true"]{opacity:1}
+.tip{position:absolute;top:calc(100% + var(--island-gap));right:0;width:min(340px,calc(100vw - 32px));background:var(--toast-bg);color:var(--toast-ink);border-radius:14px;padding:14px 16px;font-size:.88rem;line-height:1.45;box-shadow:0 12px 32px rgba(0,0,0,.28);z-index:5}
+.tip p{margin:0}
+.tip p+p{margin-top:8px;font-weight:600}
 .keyisland[data-state="ok"] input[type=password]{border-color:var(--green);box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 35%,transparent)}
 .keyisland[data-state="bad"] input[type=password]{border-color:var(--danger);box-shadow:0 0 0 2px color-mix(in srgb,var(--danger) 30%,transparent)}
-.keystate{display:flex;align-items:center;gap:7px;font:600 .82rem var(--sans);white-space:nowrap;padding:7px 11px;border-radius:999px;background:var(--surface-2)}
+.keystate{display:flex;align-items:center;gap:7px;font:600 .82rem var(--sans);white-space:nowrap;height:34px;padding:0 12px;border-radius:999px;background:var(--surface-2)}
 .dot{width:9px;height:9px;border-radius:50%;background:#9b9b9b;flex:none}
 .keyisland[data-state="ok"] .dot{background:var(--green)}
 .keyisland[data-state="bad"] .dot{background:var(--danger)}
@@ -64,16 +71,19 @@ h1,h2,h3{font-family:var(--display);font-weight:500;line-height:1.1;letter-spaci
 @keyframes pulse{50%{opacity:.35}}
 .remember{font-size:.8rem;color:var(--muted);display:flex;gap:6px;align-items:center;white-space:nowrap;margin:0}
 .remember input{width:auto}
-.acctisland{padding:6px 6px 6px 8px}
+.acctisland{padding:0 8px}
 .userbar{display:flex;align-items:center;gap:10px;font-size:.88rem;color:var(--muted)}
 .userbar b{color:var(--ink)}
-.themebtn{background:var(--surface-2);color:var(--ink);border:0;border-radius:999px;padding:8px 12px;font:600 .82rem var(--sans);cursor:pointer;white-space:nowrap;transition:transform .2s var(--ease)}
+#whoWrap{white-space:nowrap;display:flex;align-items:center;gap:5px;flex:none}
+#whoami{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button.signout{height:34px;padding:0 14px;white-space:nowrap}
+.themebtn{height:36px;background:var(--surface-2);color:var(--ink);border:0;border-radius:999px;padding:0 13px;font:600 .82rem var(--sans);cursor:pointer;white-space:nowrap;transition:transform .2s var(--ease)}
 .themebtn:hover{transform:translateY(-1px)}
-button.dark{background:var(--btn);color:var(--btn-ink);border:0;border-radius:8px;padding:9px 14px;font:600 .85rem var(--sans);cursor:pointer;white-space:nowrap;transition:transform .2s var(--ease)}
+button.dark{height:36px;background:var(--btn);color:var(--btn-ink);border:0;border-radius:8px;padding:0 16px;font:600 .85rem var(--sans);cursor:pointer;white-space:nowrap;transition:transform .2s var(--ease)}
 button.dark:hover{transform:translateY(-1px)}
-.secnav{padding:5px;max-width:100%;overflow-x:auto;scrollbar-width:none;gap:2px;scroll-behavior:auto}
+.secnav{padding:0 6px;max-width:100%;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;gap:2px;scroll-behavior:auto}
 .secnav::-webkit-scrollbar{display:none}
-.navpill{background:transparent;color:var(--ink);border:0;border-radius:11px;padding:8px 14px;font:500 .9rem var(--sans);cursor:pointer;white-space:nowrap;transition:background .2s var(--ease),color .2s var(--ease)}
+.navpill{height:38px;background:transparent;color:var(--ink);border:0;border-radius:11px;padding:0 14px;font:500 .9rem var(--sans);cursor:pointer;white-space:nowrap;flex:none;transition:background .2s var(--ease),color .2s var(--ease)}
 .navpill:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
 .navpill[aria-current="true"]{background:var(--btn);color:var(--btn-ink)}
 
@@ -187,23 +197,26 @@ section.res>h2 small{font:600 .74rem var(--sans);color:var(--muted);letter-spaci
 .copy:hover{background:var(--yellow);color:#0F0F0F}
 footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
 @media (max-width:1000px){
-  .brandisland{order:1}
-  .acctisland{order:2}
-  .keyisland{order:3;flex:1 1 100%;max-width:none;margin-left:0}
+  .brandisland{order:1;flex:1 1 0;min-width:0}
+  .brand{overflow:hidden;text-overflow:ellipsis}
+  .acctisland{order:2;flex:none}
+  .keyisland{order:3;flex:1 1 100%}
 }
-.signin-short,#signinBtn .short{display:none}
 @media (max-width:720px){
+  :root{--island-h:48px;--island-gap:8px}
   #chrome{padding:8px 10px 0}
-  .brandisland{padding:8px 12px;gap:8px}
-  .brand{font-size:.92rem}
-  #signinBtn .long{display:none}
-  #signinBtn .short{display:inline}
+  .brandisland{padding:0 14px;gap:8px}
+  .brand{font-size:.95rem}
+  #whoLabel{display:none}
+  #whoami{max-width:64px}
   .themebtn .tx{display:none}
-  .acctisland{padding:5px}
-  .keyisland{padding:6px}
-  .navpill{padding:7px 12px;font-size:.85rem}
-  #chrome .navrow{margin-top:6px}
-  #whoWrap{display:none}
+  .acctisland{padding:0 6px}
+  .keyisland{padding:0 6px}
+  .keyisland input[type=password]{height:34px}
+  .keystate{height:32px;padding:0 10px;font-size:.78rem}
+  .themebtn,button.dark{height:34px}
+  button.signout{height:32px;padding:0 12px}
+  .navpill{height:34px;padding:0 12px;font-size:.85rem}
   .remember{display:none}
   .inputs{grid-template-columns:1fr}
   textarea{min-height:200px}
@@ -221,16 +234,18 @@ footer{margin-top:64px;color:var(--muted);font-size:.85rem;max-width:60ch}
 <body>
 <header id="chrome">
   <div class="row">
-    <div class="island brandisland"><span class="logo-dot" aria-hidden="true"></span><span class="brand">Interview Prep Desk</span></div>
+    <button type="button" id="homeBtn" class="island brandisland" aria-label="Interview Prep Desk, go to home"><span class="logo-dot" aria-hidden="true"></span><span class="brand">Interview Prep Desk</span></button>
     <div class="island keyisland" id="keywrap" data-state="none">
       <label class="sr" for="apiKey">Anthropic API key</label>
       <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your Anthropic API key" title="Sent only to api.anthropic.com from your browser. Never saved to your account.">
       <span class="keystate" id="keyState" role="status" aria-live="polite"><i class="dot" aria-hidden="true"></i><span id="keyLabel">Sample mode</span></span>
+      <button type="button" class="help" id="keyHelp" aria-label="What does this status mean?" aria-expanded="false" aria-controls="keyTip">?</button>
+      <div class="tip hidden" id="keyTip" role="tooltip"><p>We check your key with a free request to Anthropic that uses no tokens. Your key stays in this browser and is only ever sent to api.anthropic.com.</p><p id="keyTipState"></p></div>
       <label class="remember"><input type="checkbox" id="remember"> Remember</label>
     </div>
     <div class="island acctisland">
       <button type="button" id="themeBtn" class="themebtn" aria-pressed="false"><span class="ic">☾</span><span class="tx"> Dark</span></button>
-      <div id="userbar" class="userbar hidden"><span id="whoWrap"><span id="whoLabel">Signed in as</span> <b id="whoami"></b></span><button type="button" id="logoutBtn" class="linkbtn">Log out</button><button type="button" id="signinBtn" class="dark"><span class="long">Sign in / Create account</span><span class="short">Sign in</span></button></div>
+      <div id="userbar" class="userbar hidden"><span id="whoWrap"><span id="whoLabel">Signed in as</span> <b id="whoami"></b></span><button type="button" id="logoutBtn" class="mini signout">Sign out</button><button type="button" id="signinBtn" class="dark" title="Sign in or create an account">Sign in</button></div>
     </div>
   </div>
   <div class="row navrow hidden" id="navrow"><nav id="secnav" class="island secnav" aria-label="Sections on this page"></nav></div>
@@ -579,11 +594,13 @@ function show(v){
 function updateUserbar(){
   const guest=!me||me.guest;
   $("userbar").classList.toggle("hidden",!CONFIGURED);
-  $("whoLabel").textContent=guest?"Guest":"Signed in as";
+  $("whoWrap").classList.toggle("hidden",guest);
   $("whoami").textContent=guest?"":me.username;
+  $("whoami").title=guest?"":me.username;
   $("logoutBtn").classList.toggle("hidden",guest);
   $("signinBtn").classList.toggle("hidden",!guest);
 }
+$("homeBtn").addEventListener("click",()=>openJobs());
 $("signinBtn").addEventListener("click",()=>show("Auth"));
 $("guestBtn").addEventListener("click",()=>openJobs());
 
@@ -636,7 +653,7 @@ $("authForm").addEventListener("submit",async e=>{
 $("logoutBtn").addEventListener("click",async()=>{
   try{ await remote.signOut(); }catch(e){}
   me=GUEST; store=local; cur=null; $("apiKey").value=""; try{ localStorage.removeItem("ipd_key"); }catch(e){} $("remember").checked=false; setKeyState("none");
-  updateUserbar(); openJobs();
+  updateUserbar(); openJobs(); setStatus("Signed out.");
 });
 
 /* =========================== JOBS LIST =========================== */
@@ -1126,14 +1143,31 @@ async function generate(){
 $("go").addEventListener("click",generate);
 
 /* =========================== API KEY STATUS =========================== */
-const KEY_LABELS={none:"Sample mode",wait:"Checking…",ok:"Key works",bad:"Key rejected",unknown:"Can't verify"};
+const KEY_LABELS={none:"Sample mode",wait:"Checking API key…",ok:"API key works",bad:"API key rejected",unknown:"Can't verify API key"};
+const KEY_TIPS={
+  none:"No key entered, so you'll see sample output. Paste a key to get tailored results.",
+  wait:"Checking your key with Anthropic…",
+  ok:"API key works: Anthropic accepted this key.",
+  bad:"API key rejected: Anthropic didn't accept this key. Check it for typos, or create a new one in your Anthropic console.",
+  unknown:"Couldn't reach Anthropic, so this key is unverified. It may still work."
+};
 const keyVerified=new Map(); // key -> "ok" | "bad" (this tab only; never persisted)
 let keyTimer=null;
 function setKeyState(state){
   $("keywrap").dataset.state=state;
   $("keyLabel").textContent=KEY_LABELS[state]||KEY_LABELS.none;
-  $("keyState").title = state==="none" ? "No key entered: you will see sample output." : state==="unknown" ? "Couldn't reach Anthropic to check this key (offline?). It may still work." : "";
+  $("keyTipState").textContent=KEY_TIPS[state]||KEY_TIPS.none;
 }
+/* the "?" help tip: hover or keyboard focus previews it, click pins it open */
+const keyHelp=$("keyHelp"), keyTip=$("keyTip"); let tipPinned=false;
+function setTip(open){ keyTip.classList.toggle("hidden",!open); keyHelp.setAttribute("aria-expanded",String(open)); if(!open) tipPinned=false; }
+keyHelp.addEventListener("mouseenter",()=>{ if(keyTip.classList.contains("hidden")) setTip(true); });
+keyHelp.addEventListener("mouseleave",()=>{ if(!tipPinned && !keyHelp.matches(":focus-visible")) setTip(false); });
+keyHelp.addEventListener("focus",()=>{ if(keyHelp.matches(":focus-visible")) setTip(true); });
+keyHelp.addEventListener("blur",()=>{ if(!tipPinned) setTip(false); });
+keyHelp.addEventListener("click",e=>{ e.stopPropagation(); if(tipPinned) setTip(false); else { setTip(true); tipPinned=true; } });
+document.addEventListener("click",e=>{ if(!keyTip.contains(e.target)) setTip(false); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") setTip(false); });
 function noteKeyResult(key,state){
   keyVerified.set(key,state);
   if($("apiKey").value.trim()===key) setKeyState(state);
@@ -1311,6 +1345,7 @@ $("themeBtn").addEventListener("click",()=>{
 applyTheme(document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"));
 
 /* =========================== BOOT =========================== */
+setKeyState("none");
 try{ const k=localStorage.getItem("ipd_key"); if(k){ $("apiKey").value=k; $("remember").checked=true; checkKey(); } }catch(e){}
 (async function boot(){
   me=GUEST;
