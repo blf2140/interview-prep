@@ -16,5 +16,6 @@ Without those two values the page runs in **demo mode**: no accounts, data saved
 
 - Accounts are optional. Guests can use everything; their prep is saved in that browser only (lost if site data is cleared). After signing in, guest jobs can be moved into the account.
 - Each user pastes their own Anthropic API key. With "Remember" ticked it is kept in that browser's localStorage. If the user is signed in, an encrypted copy (AES-GCM, key derived from their account password with PBKDF2, all in the browser) is saved to `profiles.api_key_enc`, so it comes back at their next sign-in. Supabase only ever sees ciphertext. A forgotten password therefore also means the saved key can't be recovered (the user just pastes it again).
+- Uploaded résumés are saved so they can be reused ("Use existing"): in the account's `resumes` table when signed in (protected by row-level security, but stored as readable text/base64, unlike the API key), or in the browser's localStorage as a guest. Files over 4 MB are used but not saved.
 - Forgotten passwords can't be reset yet. The optional recovery email is stored for a future reset flow.
 - The full résumé and job text are not stored; only short summaries used to generate additional questions.

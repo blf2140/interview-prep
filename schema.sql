@@ -44,6 +44,23 @@ alter table public.questions add column if not exists my_answer text;
 alter table public.questions add column if not exists feedback jsonb;
 alter table public.jobs add column if not exists ask_questions jsonb not null default '[]'::jsonb;
 
+-- Saved résumés, so an uploaded résumé can be reused for the next job.
+-- PDFs are stored as base64 of the original file; DOCX/TXT as extracted text.
+create table if not exists public.resumes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  filename text not null,
+  kind text not null check (kind in ('pdf', 'text')),
+  content text not null,
+  content_hash text not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, content_hash)
+);
+alter table public.resumes enable row level security;
+drop policy if exists "resumes: own rows" on public.resumes;
+create policy "resumes: own rows" on public.resumes
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
 -- Added with "Your pitch": {current:{positioning,pitch,points[]}, history:[{version,feedback,sample}]}
 alter table public.jobs add column if not exists pitch jsonb;
 

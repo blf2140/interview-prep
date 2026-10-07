@@ -118,6 +118,11 @@ textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid v
 .seg button.on{background:var(--btn);color:var(--btn-ink)}
 .filebtn{font:600 .8rem var(--sans);background:var(--surface-2);border-radius:999px;padding:7px 14px;cursor:pointer}
 .filebtn:hover{background:var(--line)}
+.seg label.segbtn{display:inline-block;background:transparent;color:var(--muted);padding:6px 13px;border-radius:999px;font:600 .8rem var(--sans);cursor:pointer}
+.seg label.segbtn:hover{color:var(--ink)}
+.savedpanel{margin-bottom:10px}
+.savedrow{display:flex;gap:8px;align-items:center}
+.savedrow select{flex:1;min-width:0;padding:10px 12px}
 .chip{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--ink);border-radius:12px;padding:12px 14px;font-weight:600;font-size:.95rem}
 .chip span{word-break:break-all}
 .chip button{background:var(--surface-2);border:0;color:var(--ink);border-radius:999px;padding:5px 12px;font:600 .8rem var(--sans);cursor:pointer;align-self:flex-start}
@@ -346,7 +351,17 @@ dialog#pwDialog h3{font-size:1.4rem}
       <div>
         <div class="fieldhead">
           <span class="field">Résumé</span>
-          <label class="filebtn">Upload file<input type="file" id="resumeFile" accept=".pdf,.docx,.doc,.txt" hidden></label>
+          <div class="seg" role="group" aria-label="Résumé source">
+            <label class="segbtn">Upload file<input type="file" id="resumeFile" accept=".pdf,.docx,.doc,.txt" hidden></label>
+            <button type="button" id="useExistingBtn" aria-pressed="false">Use existing</button>
+          </div>
+        </div>
+        <div id="savedPanel" class="savedpanel hidden">
+          <div class="savedrow">
+            <select id="savedSel" aria-label="Saved résumés"><option value="">Choose a saved résumé…</option></select>
+            <button type="button" class="mini" id="savedDel" disabled>Delete saved</button>
+          </div>
+          <div class="note" id="savedNote"></div>
         </div>
         <div id="fileChip" class="chip hidden"><span id="fileName"></span><button type="button" id="fileRemove" aria-label="Remove uploaded file">Remove</button></div>
         <textarea id="resume" aria-label="Résumé text" placeholder="Paste your résumé as text, or upload a .pdf, .docx or .txt file (drop it here)…"></textarea>
@@ -613,6 +628,15 @@ const remote = {
   async setAskQuestions(jobId,arr){ const {error}=await sb.from("jobs").update({ask_questions:arr}).eq("id",jobId); throwIf(error); },
   async setDifferentiators(jobId,arr){ const {error}=await sb.from("jobs").update({differentiators:arr}).eq("id",jobId); throwIf(error); },
   async setPitch(jobId,pitch){ const {error}=await sb.from("jobs").update({pitch}).eq("id",jobId); throwIf(error); },
+  async listResumes(){ const {data,error}=await sb.from("resumes").select("id,filename,kind,created_at").order("created_at",{ascending:false}); throwIf(error); return data; },
+  async saveResume({filename,kind,content,hash}){
+    const {data:ex,error:e1}=await sb.from("resumes").select("id").eq("content_hash",hash).maybeSingle(); throwIf(e1);
+    if(ex) return {id:ex.id,existing:true};
+    const {data,error}=await sb.from("resumes").insert({filename,kind,content,content_hash:hash,user_id:me.id}).select("id").single(); throwIf(error);
+    return {id:data.id,existing:false};
+  },
+  async getResume(id){ const {data,error}=await sb.from("resumes").select("filename,kind,content").eq("id",id).single(); throwIf(error); return data; },
+  async deleteResume(id){ const {error}=await sb.from("resumes").delete().eq("id",id); throwIf(error); },
   async setAppAnswer(id,answer){ const {error}=await sb.from("application_questions").update({answer}).eq("id",id); throwIf(error); },
   async addApp(jobId,items,userId,startPos){
     const {data,error}=await sb.from("application_questions").insert(items.map((a,i)=>({question:a.question,answer:a.answer||"",position:startPos+i,job_id:jobId,user_id:userId}))).select(); throwIf(error);
@@ -627,7 +651,7 @@ const remote = {
 
 /* Local demo backend (used only when Supabase isn't configured) */
 const LS="ipd_local_v1";
-const lload=()=>{ try{ const d=JSON.parse(localStorage.getItem(LS))||{}; return {jobs:d.jobs||[],questions:d.questions||[],apps:d.apps||[]}; }catch(e){ return {jobs:[],questions:[],apps:[]}; } };
+const lload=()=>{ try{ const d=JSON.parse(localStorage.getItem(LS))||{}; return {jobs:d.jobs||[],questions:d.questions||[],apps:d.apps||[],resumes:d.resumes||[]}; }catch(e){ return {jobs:[],questions:[],apps:[],resumes:[]}; } };
 const lsave=d=>{ try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){ throw new Error("Couldn't save in this browser."); } };
 const local = {
   async listJobs(){
@@ -655,6 +679,15 @@ const local = {
   async setAskQuestions(jobId,arr){ const d=lload(); const j=d.jobs.find(x=>x.id===jobId); if(j){ j.ask_questions=arr; lsave(d); } },
   async setDifferentiators(jobId,arr){ const d=lload(); const j=d.jobs.find(x=>x.id===jobId); if(j){ j.differentiators=arr; lsave(d); } },
   async setPitch(jobId,pitch){ const d=lload(); const j=d.jobs.find(x=>x.id===jobId); if(j){ j.pitch=pitch; lsave(d); } },
+  async listResumes(){ return lload().resumes.map(({id,filename,kind,created_at})=>({id,filename,kind,created_at})).sort((a,b)=>b.created_at.localeCompare(a.created_at)); },
+  async saveResume({filename,kind,content,hash}){
+    const d=lload(); const ex=d.resumes.find(r=>r.hash===hash); if(ex) return {id:ex.id,existing:true};
+    const id=uid(); d.resumes.push({id,filename,kind,content,hash,created_at:new Date().toISOString()});
+    try{ localStorage.setItem(LS,JSON.stringify(d)); }catch(e){ throw new Error("This browser's storage is full."); }
+    return {id,existing:false};
+  },
+  async getResume(id){ const r=lload().resumes.find(x=>x.id===id); if(!r) throw new Error("That résumé no longer exists."); return {filename:r.filename,kind:r.kind,content:r.content}; },
+  async deleteResume(id){ const d=lload(); d.resumes=d.resumes.filter(r=>r.id!==id); lsave(d); },
   async setAppAnswer(id,answer){ const d=lload(); const a=d.apps.find(x=>x.id===id); if(a){ a.answer=answer; lsave(d); } },
   async addApp(jobId,items,userId,startPos){
     const d=lload(); const out=items.map((a,i)=>({id:uid(),job_id:jobId,user_id:userId,question:a.question,answer:a.answer||"",position:startPos+i,created_at:new Date().toISOString()}));
@@ -700,9 +733,10 @@ $("guestBtn").addEventListener("click",()=>openJobs());
 
 /* Move browser-only (guest) jobs into the signed-in account. */
 async function importGuest(){
-  const d=lload(); if(!d.jobs.length) return "";
-  if(!confirm(`Move ${d.jobs.length} guest job${d.jobs.length===1?"":"s"} into your account?`)) return "";
-  let ok=0, fail=0;
+  const d=lload(), nj=d.jobs.length, nr=d.resumes.length; if(!nj&&!nr) return "";
+  const what=[nj&&`${nj} guest job${nj===1?"":"s"}`, nr&&`${nr} saved résumé${nr===1?"":"s"}`].filter(Boolean).join(" and ");
+  if(!confirm(`Move ${what} into your account?`)) return "";
+  let ok=0, fail=0, rok=0, rfail=0;
   for(const j of d.jobs){
     try{
       const qs=d.questions.filter(q=>q.job_id===j.id).sort((a,b)=>a.position-b.position);
@@ -711,7 +745,12 @@ async function importGuest(){
       await local.deleteJob(j.id); ok++;
     }catch(e){ fail++; }
   }
-  return ` Moved ${ok} guest job${ok===1?"":"s"} into your account${fail?`; ${fail} couldn't be moved and are still on this device`:""}.`;
+  for(const r of d.resumes){
+    try{ await remote.saveResume({filename:r.filename,kind:r.kind,content:r.content,hash:r.hash}); await local.deleteResume(r.id); rok++; }
+    catch(e){ console.error(e); rfail++; }
+  }
+  return (nj?` Moved ${ok} guest job${ok===1?"":"s"} into your account${fail?`; ${fail} couldn't be moved and are still on this device`:""}.`:"")
+       + (nr?` Moved ${rok} résumé${rok===1?"":"s"}${rfail?`; ${rfail} couldn't be moved`:""}.`:"");
 }
 
 let authMode="in";
@@ -1303,14 +1342,17 @@ async function handleFile(file){
   try{
     if(ext==="pdf"){
       const url=await readAs(file,"readAsDataURL"); pdfB64=url.slice(url.indexOf(",")+1); showChip(name);
+      saveUploaded(name,"pdf",pdfB64,file.size,"");
     }else if(ext==="docx"){
       if(!window.mammoth) throw new Error("The DOCX reader didn't load (offline?). Paste the text or upload a PDF.");
       const buf=await readAs(file,"readAsArrayBuffer");
       const r=await mammoth.extractRawText({arrayBuffer:buf});
       if(!r.value.trim()) throw new Error("No text found in that DOCX.");
-      clearFile(); $("resume").value=r.value.trim(); setStatus(`Loaded text from ${name}. Check it below.`);
+      clearFile(); $("resume").value=r.value.trim(); const msg=`Loaded text from ${name}. Check it below.`; setStatus(msg);
+      saveUploaded(name,"text",r.value.trim(),file.size,msg);
     }else if(ext==="txt"){
-      clearFile(); $("resume").value=(await readAs(file,"readAsText")).trim(); setStatus(`Loaded text from ${name}.`);
+      clearFile(); $("resume").value=(await readAs(file,"readAsText")).trim(); const msg=`Loaded text from ${name}.`; setStatus(msg);
+      saveUploaded(name,"text",$("resume").value,file.size,msg);
     }else if(ext==="doc"){
       throw new Error("Old .doc files can't be read in the browser. Save as .docx or PDF, or paste the text.");
     }else{ throw new Error("Unsupported file type. Use PDF, DOCX or TXT."); }
@@ -1318,6 +1360,57 @@ async function handleFile(file){
 }
 $("resumeFile").addEventListener("change",e=>handleFile(e.target.files[0]));
 $("fileRemove").addEventListener("click",clearFile);
+
+/* ---- saved résumés: every uploaded file is kept so it can be reused for the next job ---- */
+const SAVE_MAX=4*1024*1024; // bigger files still work for this prep but aren't saved
+const fmtDate=iso=>new Date(iso).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+async function sha256(str){
+  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function saveUploaded(name,kind,content,size,prefix){
+  const say=(m,err)=>setStatus((prefix?prefix+" ":"")+m,err);
+  try{
+    if(size>SAVE_MAX){ say("That file is too large to save for later, but you can still use it now."); return; }
+    if(!window.crypto||!crypto.subtle) return;
+    const r=await store.saveResume({filename:name,kind,content,hash:await sha256(kind+":"+content)});
+    say(r.existing?"Already in your saved résumés.":"Saved to your résumés.");
+    if(!$("savedPanel").classList.contains("hidden")) refreshSaved();
+  }catch(e){ console.error(e); say("Couldn't save it for later. "+(e.message||""),true); }
+}
+let savedList=[];
+async function refreshSaved(){
+  const sel=$("savedSel"); sel.length=1; sel.value="";
+  try{ savedList=await store.listResumes(); }
+  catch(e){ console.error(e); savedList=[]; setStatus("Couldn't load your saved résumés. "+(e.message||""),true); }
+  savedList.forEach(r=>{ const o=document.createElement("option"); o.value=r.id; o.textContent=`${r.filename} · ${fmtDate(r.created_at)}`; sel.appendChild(o); });
+  sel.disabled=!savedList.length; $("savedDel").disabled=true;
+  $("savedNote").textContent = !savedList.length ? "No saved résumés yet. Upload one and it will show up here."
+    : signedIn() ? "Saved résumés are stored in your account and only you can see them." : "Saved résumés are stored in this browser only.";
+}
+async function applySaved(id){
+  if(!id) return;
+  try{
+    const r=await store.getResume(id);
+    if(r.kind==="pdf"){ pdfB64=r.content; showChip(r.filename); }
+    else{ clearFile(); $("resume").value=r.content; }
+    setStatus(`Using ${r.filename}.`);
+  }catch(e){ console.error(e); setStatus("Couldn't load that résumé. "+(e.message||""),true); }
+}
+$("useExistingBtn").addEventListener("click",async()=>{
+  const open=$("savedPanel").classList.contains("hidden");
+  $("savedPanel").classList.toggle("hidden",!open);
+  $("useExistingBtn").classList.toggle("on",open); $("useExistingBtn").setAttribute("aria-pressed",String(open));
+  if(open) await refreshSaved();
+});
+$("savedSel").addEventListener("change",()=>{ $("savedDel").disabled=!$("savedSel").value; applySaved($("savedSel").value); });
+$("savedDel").addEventListener("click",async()=>{
+  const id=$("savedSel").value; if(!id) return;
+  const r=savedList.find(x=>x.id===id);
+  if(!confirm(`Delete "${r?r.filename:"this résumé"}" from your saved résumés?`)) return;
+  try{ await store.deleteResume(id); await refreshSaved(); setStatus("Deleted from your saved résumés."); }
+  catch(e){ console.error(e); setStatus("Couldn't delete it. "+(e.message||""),true); }
+});
 const ta=$("resume");
 ["dragenter","dragover"].forEach(ev=>ta.addEventListener(ev,e=>{e.preventDefault(); ta.classList.add("drag");}));
 ["dragleave","drop"].forEach(ev=>ta.addEventListener(ev,e=>{e.preventDefault(); ta.classList.remove("drag");}));
